@@ -11,9 +11,16 @@ def run_agent():
     lakers_id = '1610612747'
 
     custom_headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Host': 'stats.nba.com',
+        'Connection': 'keep-alive',
         'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.9',
+        'x-nba-stats-token': 'true',
+        'x-nba-stats-origin': 'stats',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Origin': 'https://www.nba.com',
+        'Referer': 'https://www.nba.com/',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Language': 'en-US,en;q=0.9'
     }
 
     try:
