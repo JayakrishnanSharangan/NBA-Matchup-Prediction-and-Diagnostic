@@ -10,9 +10,15 @@ def run_agent():
     
     lakers_id = '1610612747'
 
+    custom_headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
+
     try:
         # 1. Fetch Historical Data
-        game_log = teamgamelog.TeamGameLog(team_id=lakers_id, season='2025-26')
+        game_log = teamgamelog.TeamGameLog(team_id=lakers_id, season='2025-26', headers=custom_headers, timeout=60)
         df = game_log.get_data_frames()[0]
         
         # Format and Sort by Date
@@ -44,7 +50,7 @@ def run_agent():
         current_pts_avg = last_5_games['PTS'].mean()
 
         # 3. Look at Dec 25 schedule 
-        scoreboard = scoreboardv3.ScoreboardV3(game_date='2025-12-25')
+        scoreboard = scoreboardv3.ScoreboardV3(game_date='2025-12-25', headers=custom_headers, timeout=60)
         games_data = scoreboard.get_dict().get('scoreboard', {}).get('games', [])
         
         matchup_name = "Los Angeles Lakers vs. Houston Rockets"
