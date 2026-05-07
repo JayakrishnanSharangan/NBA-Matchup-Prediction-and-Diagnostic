@@ -1,11 +1,16 @@
+import sys
+import io
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
-# ─────────────────────────────────────────────────────────────────────────────
+# Force UTF-8 output on Windows (bypasses cp1252 codec limitation)
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
+# -----------------------------------------------------------------------------
 #  CONFIG
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 DATA_URL = (
     "https://raw.githubusercontent.com/fivethirtyeight/data/master/"
     "nba-elo/nbaallelo.csv"
@@ -15,13 +20,13 @@ MOCK_DATE    = "2025-12-25"
 MOCK_OPP     = "Houston Rockets"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 #  TERMINAL DASHBOARD HELPERS
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 W  = 68          # dashboard width
-DIV = "─" * W
+DIV = "-" * W
 
-def banner(text: str, char: str = "═") -> None:
+def banner(text: str, char: str = "=") -> None:
     print(char * W)
     print(f"  {text}")
     print(char * W)
@@ -29,27 +34,28 @@ def banner(text: str, char: str = "═") -> None:
 def row(label: str, value, color_code: str = "") -> None:
     reset = "\033[0m"
     pad   = W - len(label) - len(str(value)) - 6
-    print(f"  {color_code}{label}{reset}{'·' * max(pad, 1)}{color_code}{value}{reset}")
+    dots  = "." * max(pad, 1)
+    print(f"  {color_code}{label}{reset}{dots}{color_code}{value}{reset}")
 
 def section(title: str) -> None:
-    print(f"\n  \033[1;36m▸ {title}\033[0m")
+    print(f"\n  \033[1;36m>> {title}\033[0m")
     print("  " + DIV)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 #  MAIN AGENT
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 def run_agent():
 
     # ── Header ───────────────────────────────────────────────────────────────
     print()
-    banner("🏀  LAKERS ML PREDICTION ENGINE  ·  Phase 5 Automated Pipeline  🏀",
-           char="═")
+    banner("[NBA]  LAKERS ML PREDICTION ENGINE  |  Phase 5 Automated Pipeline  [NBA]",
+           char="=")
     print()
 
     # ── 1. Pull public CSV via URL ────────────────────────────────────────────
     section("DATA INGESTION  (FiveThirtyEight Public NBA Elo Dataset)")
-    print(f"  Fetching → {DATA_URL[:60]}…")
+    print(f"  Fetching -> {DATA_URL[:60]}...")
 
     try:
         df_raw = pd.read_csv(DATA_URL, low_memory=False)
@@ -57,13 +63,13 @@ def run_agent():
         print(f"\n  \033[1;31m[FATAL] Could not fetch dataset: {exc}\033[0m\n")
         return
 
-    print(f"  \033[32m✔  Loaded {len(df_raw):,} rows × {len(df_raw.columns)} columns\033[0m")
+    print(f"  \033[32m[OK] Loaded {len(df_raw):,} rows x {len(df_raw.columns)} columns\033[0m")
 
     # ── 2. Filter for Lakers ──────────────────────────────────────────────────
-    section("FILTERING  —  Los Angeles Lakers Games")
+    section("FILTERING  --  Los Angeles Lakers Games")
     lakers_mask = df_raw["team_id"].isin(LAKERS_SLUGS)
     df = df_raw[lakers_mask].copy()
-    print(f"  \033[32m✔  {len(df):,} Lakers game records found\033[0m")
+    print(f"  \033[32m[OK] {len(df):,} Lakers game records found\033[0m")
 
     # ── 3. Feature Engineering ────────────────────────────────────────────────
     section("FEATURE ENGINEERING")
@@ -103,17 +109,17 @@ def run_agent():
 
     if elo_col and elo_col in df.columns:
         df[elo_col] = pd.to_numeric(df[elo_col], errors="coerce")
-        df[elo_col].fillna(df[elo_col].median(), inplace=True)
+        df[elo_col] = df[elo_col].fillna(df[elo_col].median())
         feature_cols.append(elo_col)
 
     if opp_elo and opp_elo in df.columns:
         df[opp_elo] = pd.to_numeric(df[opp_elo], errors="coerce")
-        df[opp_elo].fillna(df[opp_elo].median(), inplace=True)
+        df[opp_elo] = df[opp_elo].fillna(df[opp_elo].median())
         feature_cols.append(opp_elo)
 
     if score_col and score_col in df.columns:
         df[score_col] = pd.to_numeric(df[score_col], errors="coerce")
-        df[score_col].fillna(df[score_col].median(), inplace=True)
+        df[score_col] = df[score_col].fillna(df[score_col].median())
         feature_cols.append(score_col)
 
     feature_cols.append("Is_Home")
@@ -130,7 +136,7 @@ def run_agent():
         return
 
     # ── 5. Train / Evaluate ───────────────────────────────────────────────────
-    section("MODEL TRAINING  —  Random Forest Classifier")
+    section("MODEL TRAINING  --  Random Forest Classifier")
 
     X = df_model[feature_cols]
     y = df_model["Win"]
@@ -143,10 +149,10 @@ def run_agent():
     clf.fit(X_train, y_train)
 
     accuracy = accuracy_score(y_test, clf.predict(X_test))
-    print(f"  \033[32m✔  Training complete  ({len(X_train):,} samples)\033[0m")
+    print(f"  \033[32m[OK] Training complete  ({len(X_train):,} samples)\033[0m")
 
     # ── 6. Mock Prediction — Christmas Day Home Game ──────────────────────────
-    section(f"MOCK PREDICTION  —  Christmas Day Home Game vs {MOCK_OPP}")
+    section(f"MOCK PREDICTION  --  Christmas Day Home Game vs {MOCK_OPP}")
 
     # Build a hypothetical feature row:
     #   • Team Elo  ~ 99th-percentile Lakers Elo from history (elite home form)
@@ -165,39 +171,39 @@ def run_agent():
     X_mock = pd.DataFrame([mock_vals])
     prob       = clf.predict_proba(X_mock)[0]
     win_prob   = round(prob[1] * 100, 2)
-    prediction = "WIN  🏆" if win_prob >= 50 else "LOSS  ❌"
+    prediction = "WIN  [VICTORY]" if win_prob >= 50 else "LOSS  [DEFEAT]"
 
     # ── 7. Stylised Terminal Dashboard ────────────────────────────────────────
     print()
-    print("═" * W)
+    print("=" * W)
     print(f"  \033[1;37m{'FINAL ANALYSIS DASHBOARD':^{W-2}}\033[0m")
-    print("═" * W)
+    print("=" * W)
 
     print()
-    row("  📅  Prediction Date",     MOCK_DATE,            "\033[1;33m")
-    row("  🏠  Venue",               "Crypto.com Arena (HOME)", "\033[1;33m")
-    row("  🆚  Opponent",            MOCK_OPP,             "\033[1;33m")
+    row("  [DATE]  Prediction Date",     MOCK_DATE,            "\033[1;33m")
+    row("  [HOME]  Venue",               "Crypto.com Arena (HOME)", "\033[1;33m")
+    row("  [OPP ]  Opponent",            MOCK_OPP,             "\033[1;33m")
     print()
-    row("  📊  Model",               "Random Forest (200 trees)", "\033[1;36m")
-    row("  🧮  Training Samples",    f"{len(X_train):,}",  "\033[1;36m")
-    row("  📐  Features Used",       len(feature_cols),    "\033[1;36m")
+    row("  [MDL ]  Model",               "Random Forest (200 trees)", "\033[1;36m")
+    row("  [DATA]  Training Samples",    f"{len(X_train):,}",  "\033[1;36m")
+    row("  [FEAT]  Features Used",       len(feature_cols),    "\033[1;36m")
 
     acc_color = "\033[1;32m" if accuracy >= 0.60 else "\033[1;33m"
-    row("  🎯  Model Accuracy",      f"{accuracy * 100:.2f} %",  acc_color)
+    row("  [ACC ]  Model Accuracy",      f"{accuracy * 100:.2f} %",  acc_color)
 
     print()
-    print("  " + "─" * (W - 2))
+    print("  " + "-" * (W - 2))
     pred_color = "\033[1;32m" if win_prob >= 50 else "\033[1;31m"
-    row("  🏀  Win Probability",     f"{win_prob} %",      pred_color)
-    row("  🔮  Final Prediction",    prediction,           pred_color)
-    print("  " + "─" * (W - 2))
+    row("  [NBA ]  Win Probability",     f"{win_prob} %",      pred_color)
+    row("  [PRED]  Final Prediction",    prediction,           pred_color)
+    print("  " + "-" * (W - 2))
     print()
-    print("═" * W)
-    print(f"  \033[1;35m  ★  Pipeline Status: OPERATIONAL  |  Source: FiveThirtyEight Public CSV  ★\033[0m")
-    print("═" * W)
+    print("=" * W)
+    print(f"  \033[1;35m  ***  Pipeline Status: OPERATIONAL  |  Source: FiveThirtyEight Public CSV  ***\033[0m")
+    print("=" * W)
     print()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":
     run_agent()
