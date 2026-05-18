@@ -21,7 +21,7 @@ spec:
             - containerPort: 3000
           env:
             - name: NEXT_PUBLIC_API_URL
-              value: "http://<AWS_EC2_PUBLIC_IP>:8080/predict"
+              value: "http://18.214.100.93:8080/predict"
           imagePullPolicy: Always
 ---
 apiVersion: v1
