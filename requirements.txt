@@ -1,3 +1,5 @@
 nba_api
 pandas
 scikit-learn
+fastapi
+uvicorn

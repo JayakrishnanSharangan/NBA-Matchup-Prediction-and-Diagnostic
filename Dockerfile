@@ -7,4 +7,4 @@ RUN pip install -r requirements.txt
 
 COPY *.py ./
 
-CMD ["python", "agent_logic.py"]
+CMD ["uvicorn", "agent_logic:app", "--host", "0.0.0.0", "--port", "8000"]

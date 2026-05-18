@@ -1,12 +1,27 @@
-import sys
-import io
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-# Force UTF-8 output on Windows (bypasses cp1252 codec limitation)
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+# -----------------------------------------------------------------------------
+#  FastAPI Application
+# -----------------------------------------------------------------------------
+app = FastAPI(
+    title="NBA Lakers ML Prediction API",
+    description="Microservice wrapping a Random Forest classifier for Lakers game predictions.",
+    version="7.0.0",
+)
+
+# Allow CORS for the Next.js frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # -----------------------------------------------------------------------------
 #  CONFIG
@@ -15,71 +30,33 @@ DATA_URL = (
     "https://raw.githubusercontent.com/fivethirtyeight/data/master/"
     "nba-elo/nbaallelo.csv"
 )
-LAKERS_SLUGS = {"LAL", "LALakers"}   # FiveThirtyEight uses "LAL"
+LAKERS_SLUGS = {"LAL", "LALakers"}
 MOCK_DATE    = "2025-12-25"
 MOCK_OPP     = "Houston Rockets"
 
 
 # -----------------------------------------------------------------------------
-#  TERMINAL DASHBOARD HELPERS
+#  ML ENGINE (Pandas ingestion + Scikit-Learn Random Forest)
 # -----------------------------------------------------------------------------
-W  = 68          # dashboard width
-DIV = "-" * W
+def run_prediction():
+    """
+    Full ML pipeline: ingest data, feature-engineer, train a Random Forest,
+    and return prediction results as a dictionary.
+    """
 
-def banner(text: str, char: str = "=") -> None:
-    print(char * W)
-    print(f"  {text}")
-    print(char * W)
+    # 1. Pull public CSV
+    df_raw = pd.read_csv(DATA_URL, low_memory=False)
 
-def row(label: str, value, color_code: str = "") -> None:
-    reset = "\033[0m"
-    pad   = W - len(label) - len(str(value)) - 6
-    dots  = "." * max(pad, 1)
-    print(f"  {color_code}{label}{reset}{dots}{color_code}{value}{reset}")
-
-def section(title: str) -> None:
-    print(f"\n  \033[1;36m>> {title}\033[0m")
-    print("  " + DIV)
-
-
-# -----------------------------------------------------------------------------
-#  MAIN AGENT
-# -----------------------------------------------------------------------------
-def run_agent():
-
-    # ── Header ───────────────────────────────────────────────────────────────
-    print()
-    banner("[NBA]  LAKERS ML PREDICTION ENGINE  |  Phase 5 Automated Pipeline  [NBA]",
-           char="=")
-    print()
-
-    # ── 1. Pull public CSV via URL ────────────────────────────────────────────
-    section("DATA INGESTION  (FiveThirtyEight Public NBA Elo Dataset)")
-    print(f"  Fetching -> {DATA_URL[:60]}...")
-
-    try:
-        df_raw = pd.read_csv(DATA_URL, low_memory=False)
-    except Exception as exc:
-        print(f"\n  \033[1;31m[FATAL] Could not fetch dataset: {exc}\033[0m\n")
-        return
-
-    print(f"  \033[32m[OK] Loaded {len(df_raw):,} rows x {len(df_raw.columns)} columns\033[0m")
-
-    # ── 2. Filter for Lakers ──────────────────────────────────────────────────
-    section("FILTERING  --  Los Angeles Lakers Games")
+    # 2. Filter for Lakers
     lakers_mask = df_raw["team_id"].isin(LAKERS_SLUGS)
     df = df_raw[lakers_mask].copy()
-    print(f"  \033[32m[OK] {len(df):,} Lakers game records found\033[0m")
 
-    # ── 3. Feature Engineering ────────────────────────────────────────────────
-    section("FEATURE ENGINEERING")
-
-    # Identify score and elo columns dynamically
+    # 3. Feature Engineering
     score_col = next((c for c in df.columns if "pts" in c.lower() or "score" in c.lower()), None)
     elo_col   = next((c for c in df.columns if "elo" in c.lower() and "opp" not in c.lower()), None)
     opp_elo   = next((c for c in df.columns if "elo" in c.lower() and "opp" in c.lower()), None)
 
-    # Home/Away flag  ("home" column is 1 if home, 0 if away in this dataset)
+    # Home/Away flag
     if "is_home" in df.columns:
         df["Is_Home"] = df["is_home"].fillna(0).astype(int)
     elif "home" in df.columns:
@@ -93,13 +70,11 @@ def run_agent():
     elif "score" in df.columns and "opp_score" in df.columns:
         df["Win"] = (df["score"] > df["opp_score"]).astype(int)
     else:
-        # Fallback: assume column named 'pts' vs 'opp_pts'
         score_col_fb = next((c for c in df.columns if c.lower() in ("pts", "score")), None)
         opp_col_fb   = next((c for c in df.columns if c.lower() in ("opp_pts", "opp_score")), None)
         if score_col_fb and opp_col_fb:
             df["Win"] = (df[score_col_fb] > df[opp_col_fb]).astype(int)
         else:
-            print("  \033[33m[WARN] Win/Loss column not resolved; using synthetic fallback.\033[0m")
             df["Win"] = 0
 
     df["Win"] = df["Win"].fillna(0).astype(int)
@@ -124,20 +99,13 @@ def run_agent():
 
     feature_cols.append("Is_Home")
 
-    print(f"  Features selected  : {feature_cols}")
-    print(f"  Label              : Win  (1 = W, 0 = L)")
-
-    # ── 4. Handle Missing Data ────────────────────────────────────────────────
+    # 4. Handle Missing Data
     df_model = df[feature_cols + ["Win"]].dropna()
-    print(f"  Clean samples      : {len(df_model):,}")
 
     if len(df_model) < 50:
-        print("  \033[1;31m[ERROR] Insufficient data after cleaning. Aborting.\033[0m\n")
-        return
+        return {"error": "Insufficient data after cleaning."}
 
-    # ── 5. Train / Evaluate ───────────────────────────────────────────────────
-    section("MODEL TRAINING  --  Random Forest Classifier")
-
+    # 5. Train / Evaluate
     X = df_model[feature_cols]
     y = df_model["Win"]
 
@@ -149,16 +117,8 @@ def run_agent():
     clf.fit(X_train, y_train)
 
     accuracy = accuracy_score(y_test, clf.predict(X_test))
-    print(f"  \033[32m[OK] Training complete  ({len(X_train):,} samples)\033[0m")
 
-    # ── 6. Mock Prediction — Christmas Day Home Game ──────────────────────────
-    section(f"MOCK PREDICTION  --  Christmas Day Home Game vs {MOCK_OPP}")
-
-    # Build a hypothetical feature row:
-    #   • Team Elo  ~ 99th-percentile Lakers Elo from history (elite home form)
-    #   • Opp Elo   ~ league-average
-    #   • Score     ~ Lakers recent scoring average
-    #   • Is_Home   = 1
+    # 6. Mock Prediction — Christmas Day Home Game
     mock_vals = {}
     for col in feature_cols:
         if col == "Is_Home":
@@ -166,44 +126,31 @@ def run_agent():
         elif "opp" in col.lower():
             mock_vals[col] = float(df[col].mean())
         else:
-            mock_vals[col] = float(df[col].quantile(0.72))   # above-average
+            mock_vals[col] = float(df[col].quantile(0.72))
 
     X_mock = pd.DataFrame([mock_vals])
     prob       = clf.predict_proba(X_mock)[0]
     win_prob   = round(prob[1] * 100, 2)
-    prediction = "WIN  [VICTORY]" if win_prob >= 50 else "LOSS  [DEFEAT]"
+    prediction = "WIN" if win_prob >= 50 else "LOSS"
 
-    # ── 7. Stylised Terminal Dashboard ────────────────────────────────────────
-    print()
-    print("=" * W)
-    print(f"  \033[1;37m{'FINAL ANALYSIS DASHBOARD':^{W-2}}\033[0m")
-    print("=" * W)
-
-    print()
-    row("  [DATE]  Prediction Date",     MOCK_DATE,            "\033[1;33m")
-    row("  [HOME]  Venue",               "Crypto.com Arena (HOME)", "\033[1;33m")
-    row("  [OPP ]  Opponent",            MOCK_OPP,             "\033[1;33m")
-    print()
-    row("  [MDL ]  Model",               "Random Forest (200 trees)", "\033[1;36m")
-    row("  [DATA]  Training Samples",    f"{len(X_train):,}",  "\033[1;36m")
-    row("  [FEAT]  Features Used",       len(feature_cols),    "\033[1;36m")
-
-    acc_color = "\033[1;32m" if accuracy >= 0.60 else "\033[1;33m"
-    row("  [ACC ]  Model Accuracy",      f"{accuracy * 100:.2f} %",  acc_color)
-
-    print()
-    print("  " + "-" * (W - 2))
-    pred_color = "\033[1;32m" if win_prob >= 50 else "\033[1;31m"
-    row("  [NBA ]  Win Probability",     f"{win_prob} %",      pred_color)
-    row("  [PRED]  Final Prediction",    prediction,           pred_color)
-    print("  " + "-" * (W - 2))
-    print()
-    print("=" * W)
-    print(f"  \033[1;35m  ***  Pipeline Status: OPERATIONAL  |  Source: FiveThirtyEight Public CSV  ***\033[0m")
-    print("=" * W)
-    print()
+    return {
+        "team": "Los Angeles Lakers",
+        "prediction": prediction,
+        "win_probability": win_prob,
+        "accuracy": round(accuracy * 100, 2),
+        "opponent": MOCK_OPP,
+        "game_date": MOCK_DATE,
+        "model": "Random Forest (200 trees)",
+        "training_samples": len(X_train),
+        "features_used": len(feature_cols),
+    }
 
 
 # -----------------------------------------------------------------------------
-if __name__ == "__main__":
-    run_agent()
+#  API ENDPOINT
+# -----------------------------------------------------------------------------
+@app.get("/predict")
+def predict():
+    """Execute the ML pipeline and return prediction as JSON."""
+    result = run_prediction()
+    return result
