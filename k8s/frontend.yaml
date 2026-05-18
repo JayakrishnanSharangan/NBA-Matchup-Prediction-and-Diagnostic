@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nba-frontend
+  labels:
+    app: nba-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nba-frontend
+  template:
+    metadata:
+      labels:
+        app: nba-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: docker.io/YOUR_DOCKER_USERNAME/nba-frontend:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "http://<AWS_EC2_PUBLIC_IP>:8080/predict"
+          imagePullPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nba-frontend-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: nba-frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000

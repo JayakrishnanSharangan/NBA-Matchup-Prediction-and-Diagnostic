@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nba-backend
+  labels:
+    app: nba-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nba-backend
+  template:
+    metadata:
+      labels:
+        app: nba-backend
+    spec:
+      containers:
+        - name: backend
+          image: docker.io/YOUR_DOCKER_USERNAME/nba-backend:latest
+          ports:
+            - containerPort: 8080
+          imagePullPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nba-backend-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: nba-backend
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
