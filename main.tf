@@ -84,39 +84,16 @@ resource "aws_security_group" "nba_agent_sg" {
 # -----------------------------------------------------------------------------
 resource "aws_instance" "nba_agent_node" {
   ami                    = "ami-0c7217cdde317cfec"   # Ubuntu 22.04 LTS (us-east-1)
-  instance_type          = "t3.medium"
+  instance_type          = "t2.micro"
   vpc_security_group_ids = [aws_security_group.nba_agent_sg.id]
 
   # ── Zero-Touch Bootstrap Script ────────────────────────────────────────────
-  # Automatically provisions Docker + Minikube on first boot (no manual SSH).
+  # Automatically provisions Docker + K3s on first boot (no manual SSH).
   user_data = <<-EOF
     #!/bin/bash
-    set -euxo pipefail
-
-    # ── 1. System Update ──────────────────────────────────────────────────────
     sudo apt-get update -y
-    sudo apt-get upgrade -y
-
-    # ── 2. Install Docker ─────────────────────────────────────────────────────
-    sudo apt-get install -y docker.io
-    sudo systemctl enable docker
-    sudo systemctl start docker
-    sudo usermod -aG docker ubuntu
-
-    # ── 3. Download & Install Minikube ────────────────────────────────────────
-    curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-    sudo install minikube-linux-amd64 /usr/local/bin/minikube
-    rm minikube-linux-amd64
-
-    # ── 4. Install kubectl ────────────────────────────────────────────────────
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-    sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-    rm kubectl
-
-    # ── 5. Start Minikube (force-mode bypasses VM driver requirement on EC2) ──
-    sudo -u ubuntu minikube start --force --driver=docker
-
-    echo "=== Zero-Touch Bootstrap Complete: Minikube is running ==="
+    sudo apt-get install docker.io -y
+    curl -sfL https://get.k3s.io | sh -
   EOF
 
   root_block_device {
