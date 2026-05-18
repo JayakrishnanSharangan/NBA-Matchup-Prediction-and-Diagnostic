@@ -84,7 +84,7 @@ resource "aws_security_group" "nba_agent_sg" {
 # -----------------------------------------------------------------------------
 resource "aws_instance" "nba_agent_node" {
   ami                    = "ami-0c7217cdde317cfec"   # Ubuntu 22.04 LTS (us-east-1)
-  instance_type          = "t2.micro"
+  instance_type          = "t3.micro"
   vpc_security_group_ids = [aws_security_group.nba_agent_sg.id]
 
   # ── Zero-Touch Bootstrap Script ────────────────────────────────────────────
