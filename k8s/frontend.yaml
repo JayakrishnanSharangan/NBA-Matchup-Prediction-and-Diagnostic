@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: docker.io/YOUR_DOCKER_USERNAME/nba-frontend:latest
+          image: docker.io/jayakrishnansharangan/nba-frontend:latest
           ports:
             - containerPort: 3000
           env:

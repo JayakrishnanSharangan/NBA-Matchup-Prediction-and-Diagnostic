@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: docker.io/YOUR_DOCKER_USERNAME/nba-backend:latest
+          image: docker.io/jayakrishnansharangan/nba-backend:latest
           ports:
             - containerPort: 8080
           imagePullPolicy: Always
