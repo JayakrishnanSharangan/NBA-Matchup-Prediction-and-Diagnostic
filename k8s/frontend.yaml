@@ -21,7 +21,7 @@ spec:
             - containerPort: 3000
           env:
             - name: NEXT_PUBLIC_API_URL
-              value: "http://18.214.100.93:8080/predict"
+              value: "http://98.93.213.189:31019/predict"
           imagePullPolicy: Always
 ---
 apiVersion: v1
@@ -29,10 +29,11 @@ kind: Service
 metadata:
   name: nba-frontend-service
 spec:
-  type: LoadBalancer
+  type: NodePort
   selector:
     app: nba-frontend
   ports:
     - protocol: TCP
       port: 80
       targetPort: 3000
+      nodePort: 30000

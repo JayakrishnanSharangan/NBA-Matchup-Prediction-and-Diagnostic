@@ -4,17 +4,17 @@ pipeline {
     stages {
         stage('Build AI Image') {
             steps {
-                bat 'docker build -t nba-agent:latest .'
+                sh 'docker build -t nba-agent:latest .'
             }
         }
         stage('Test Engine') {
             steps {
-                bat 'docker run --rm nba-agent:latest'
+                sh 'docker run --rm nba-agent:latest'
             }
         }
         stage('Cleanup') {
             steps {
-                bat 'docker image prune -f'
+                sh 'docker image prune -f'
             }
         }
     }

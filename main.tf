@@ -63,6 +63,38 @@ resource "aws_security_group" "nba_agent_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "Kubernetes NodePort Frontend"
+    from_port   = 30000
+    to_port     = 30000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Kubernetes NodePort Backend"
+    from_port   = 30080
+    to_port     = 30080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Prometheus Kubelet Metrics"
+    from_port   = 10250
+    to_port     = 10250
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Prometheus Kubelet Metrics"
+    from_port   = 10255
+    to_port     = 10255
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   # Allow all outbound
   egress {
     from_port   = 0
@@ -86,6 +118,7 @@ resource "aws_instance" "nba_agent_node" {
   ami                    = "ami-0c7217cdde317cfec"   # Ubuntu 22.04 LTS (us-east-1)
   instance_type          = "t3.micro"
   vpc_security_group_ids = [aws_security_group.nba_agent_sg.id]
+  key_name               = aws_key_pair.nba_deployed_key.key_name
 
   # ── Zero-Touch Bootstrap Script ────────────────────────────────────────────
   # Automatically provisions Docker + K3s on first boot (no manual SSH).
@@ -127,3 +160,22 @@ output "security_group_id" {
   description = "Security Group ID"
   value       = aws_security_group.nba_agent_sg.id
 }
+
+# -----------------------------------------------------------------------------
+# SSH Key Pair Generation
+# -----------------------------------------------------------------------------
+resource "tls_private_key" "nba_crypto_key" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+resource "aws_key_pair" "nba_deployed_key" {
+  key_name   = "nba-automation-key"
+  public_key = tls_private_key.nba_crypto_key.public_key_openssh
+}
+
+resource "local_file" "private_key_pem" {
+  content  = tls_private_key.nba_crypto_key.private_key_pem
+  filename = "${path.module}/nba-automation-key.pem"
+}
+

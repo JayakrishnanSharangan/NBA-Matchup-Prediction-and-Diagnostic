@@ -1,0 +1,48 @@
+# =============================================================================
+# .gitignore — NBA-Engine Project
+# =============================================================================
+
+# --- Security: NEVER commit private keys or credentials ---
+*.pem
+*.key
+rootkey.csv
+*.csv
+
+# --- Terraform: State files contain sensitive infrastructure data ---
+terraform.tfstate
+terraform.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+
+# --- Large binaries: Don't bloat the repo ---
+terraform.exe
+jenkins.msi
+
+# --- Node.js ---
+node_modules/
+frontend/.next/
+frontend/out/
+.env
+.env.local
+.env*.local
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Docker ---
+docker-compose.override.yml
+
+# --- Misc ---
+*.log
+winget_out.txt
