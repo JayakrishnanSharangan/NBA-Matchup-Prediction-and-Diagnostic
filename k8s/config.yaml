@@ -1,0 +1,3 @@
+kubelet-arg:
+  - "address=0.0.0.0"
+  - "read-only-port=10255"

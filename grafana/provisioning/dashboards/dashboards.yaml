@@ -1,0 +1,11 @@
+apiVersion: 1
+providers:
+  - name: 'K3s Cluster Core Metrics'
+    orgId: 1
+    folder: 'Presentation Telemetry'
+    type: file
+    disableDeletion: true
+    editable: true
+    options:
+      # Points to the internal container directory where dashboard JSONs are mounted
+      path: /var/lib/grafana/dashboards

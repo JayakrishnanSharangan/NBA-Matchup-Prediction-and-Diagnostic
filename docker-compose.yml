@@ -1,21 +1,30 @@
+version: '3.8'
 
 services:
   prometheus:
     image: prom/prometheus:latest
     container_name: nba-prometheus
-    ports:
-      - "9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    networks:
+      - nba_network
 
   grafana:
     image: grafana/grafana:latest
     container_name: nba-grafana
     ports:
       - "3001:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    restart: unless-stopped
-    depends_on:
-      - prometheus
+    volumes:
+      # Injects data sources and provider maps instantly
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      # Injects your actual pre-built layout dashboard JSON file
+      - ./dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - nba_network
+
+networks:
+  nba_network:
+    driver: bridge

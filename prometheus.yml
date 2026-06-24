@@ -3,10 +3,24 @@ global:
 
 scrape_configs:
   - job_name: 'kubernetes-nodes'
+    scrape_interval: 60s
+    scrape_timeout: 55s
     static_configs:
-      - targets: ['host.docker.internal:10255']
+      - targets: ['host.docker.internal:29255']
+        labels:
+          origin_prometheus: 'nba-prometheus'
 
   - job_name: 'kubernetes-cadvisor'
     metrics_path: '/metrics/cadvisor'
+    scrape_interval: 60s
+    scrape_timeout: 55s
     static_configs:
-      - targets: ['host.docker.internal:10255']
+      - targets: ['host.docker.internal:29255']
+        labels:
+          origin_prometheus: 'nba-prometheus'
+
+  - job_name: 'kube-state-metrics'
+    static_configs:
+      - targets: ['host.docker.internal:28080']
+        labels:
+          origin_prometheus: 'nba-prometheus'
