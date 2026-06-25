@@ -187,6 +187,9 @@ def deployDockerAWS() {
         done
 EOF"""
 
+    // Replace AWS_TARGET_IP placeholder dynamically inside docker-compose.prod.yml
+    sh "python -c \"import os; fpath='./docker-compose.prod.yml'; c=open(fpath).read().replace('AWS_TARGET_IP', '${awsIp}'); open(fpath,'w').write(c)\""
+
     // Copy production Compose manifest and launch workload directly
     sh "scp -i ./nba-automation-key.pem -o StrictHostKeyChecking=no ./docker-compose.prod.yml ${env.AWS_USER}@${awsIp}:/home/ubuntu/docker-compose.prod.yml"
     sh """ssh -i ./nba-automation-key.pem -o StrictHostKeyChecking=no ${env.AWS_USER}@${awsIp} << 'EOF'
@@ -194,8 +197,8 @@ EOF"""
         sudo docker compose -f /home/ubuntu/docker-compose.prod.yml up -d
 EOF"""
 
-    // Verify endpoint availability (standard compose port mapping)
-    sh "curl -f --retry 3 --retry-delay 5 http://${awsIp}:3000"
+    // Verify endpoint availability (mapped to NodePort 30000)
+    sh "curl -f --retry 3 --retry-delay 5 http://${awsIp}:30000"
 }
 
 def deployLocalTunnel() {
@@ -203,11 +206,11 @@ def deployLocalTunnel() {
     sh 'docker compose -f docker-compose.prod.yml down || true'
     sh 'docker compose -f docker-compose.prod.yml up -d'
 
-    // Expose local run via localtunnel
-    sh 'nohup npx --yes localtunnel --port 3000 > localtunnel.log 2>&1 &'
+    // Expose local run via localtunnel (NodePort 30000 on host)
+    sh 'nohup npx --yes localtunnel --port 30000 > localtunnel.log 2>&1 &'
     sh 'sleep 8'
 
-    def tunnelUrl = sh(script: 'cat localtunnel.log | grep -o "https://.*" || echo "http://localhost:3000"', returnStdout: true).trim()
+    def tunnelUrl = sh(script: 'cat localtunnel.log | grep -o "https://.*" || echo "http://localhost:30000"', returnStdout: true).trim()
     env.AWS_LIVE_IP = "Local Run (Tunnel: ${tunnelUrl})"
 }
 
@@ -224,7 +227,7 @@ def sendEmailReport(String strategy, String status) {
         if (strategy == "aws-k3s") {
             liveUrl = "http://${env.AWS_LIVE_IP}:30000"
         } else if (strategy == "aws-docker") {
-            liveUrl = "http://${env.AWS_LIVE_IP}:3000"
+            liveUrl = "http://${env.AWS_LIVE_IP}:30000"
         } else {
             liveUrl = env.AWS_LIVE_IP
         }

@@ -3,13 +3,13 @@ services:
   nba-backend:
     image: jayakrishnansharangan/nba-backend:latest
     ports:
-      - "8000:8000"
+      - "8080:8000"
     restart: always
 
   nba-frontend:
     image: jayakrishnansharangan/nba-frontend:latest
     ports:
-      - "3000:3000"
+      - "30000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000/predict
+      - NEXT_PUBLIC_API_URL=http://AWS_TARGET_IP:8080/predict
     restart: always
