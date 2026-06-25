@@ -277,3 +277,41 @@ body {
 .light-mode footer [class*="text-slate-550"] {
   color: #475569 !important;
 }
+
+/* ── Streak and Badge Contrast Overrides (Light Mode) ── */
+.light-mode [class*="bg-emerald-950"] {
+  background-color: #d1fae5 !important; /* emerald-100 */
+  border-color: #a7f3d0 !important; /* emerald-200 */
+}
+.light-mode [class*="text-emerald-400"],
+.light-mode [class*="text-emerald-450"] {
+  color: #065f46 !important; /* emerald-800 */
+}
+.light-mode [class*="border-emerald-900"] {
+  border-color: #a7f3d0 !important;
+}
+
+.light-mode [class*="bg-rose-950"] {
+  background-color: #ffe4e6 !important; /* rose-100 */
+  border-color: #fecdd3 !important; /* rose-200 */
+}
+.light-mode [class*="text-rose-400"],
+.light-mode [class*="text-rose-455"] {
+  color: #9f1239 !important; /* rose-800 */
+}
+.light-mode [class*="border-rose-900"] {
+  border-color: #fecdd3 !important;
+}
+
+.light-mode [class*="bg-amber-950"],
+.light-mode [class*="bg-amber-500/10"] {
+  background-color: #ffedd5 !important; /* orange-100 */
+  border-color: #fed7aa !important; /* orange-200 */
+}
+.light-mode [class*="text-amber-500"],
+.light-mode [class*="text-amber-400"] {
+  color: #c2410c !important; /* orange-700 / amber-700 */
+}
+.light-mode [class*="border-amber-900"] {
+  border-color: #fed7aa !important;
+}
