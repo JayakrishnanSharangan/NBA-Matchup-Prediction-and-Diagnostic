@@ -61,7 +61,7 @@ pipeline {
                         if (isUnix()) {
                             sh "echo \$DH_PASSWORD | docker login -u \$DH_USERNAME --password-stdin"
                         } else {
-                            powershell "echo \$env:DH_PASSWORD | docker login -u \$env:DH_USERNAME --password-stdin"
+                            bat "echo %DH_PASSWORD%| docker login -u %DH_USERNAME% --password-stdin"
                         }
                     }
                     runCmd("docker push ${env.BACKEND_IMAGE}")
