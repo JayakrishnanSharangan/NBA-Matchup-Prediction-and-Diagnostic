@@ -1,9 +1,0 @@
-{
-    "matchup": "Los Angeles Lakers vs. Houston Rockets",
-    "date": "2025-12-25",
-    "features_used": {
-        "PTS_5g_avg": 114.8,
-        "is_home": 1
-    },
-    "win_probability_pct": 83.0
-}
