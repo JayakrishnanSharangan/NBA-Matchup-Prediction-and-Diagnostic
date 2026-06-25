@@ -174,7 +174,7 @@ def deployK3s() {
     if (isUnix()) {
         awsIp = sh(script: 'terraform output -raw instance_public_ip', returnStdout: true).trim()
     } else {
-        awsIp = powershell(script: "\"${env.TERRAFORM_PATH}\" output -raw instance_public_ip", returnStdout: true).trim()
+        awsIp = powershell(script: "& \"${env.TERRAFORM_PATH}\" output -raw instance_public_ip", returnStdout: true).trim()
     }
     env.AWS_LIVE_IP = awsIp
 
@@ -229,7 +229,7 @@ def deployDockerAWS() {
     if (isUnix()) {
         awsIp = sh(script: 'terraform output -raw instance_public_ip', returnStdout: true).trim()
     } else {
-        awsIp = powershell(script: "\"${env.TERRAFORM_PATH}\" output -raw instance_public_ip", returnStdout: true).trim()
+        awsIp = powershell(script: "& \"${env.TERRAFORM_PATH}\" output -raw instance_public_ip", returnStdout: true).trim()
     }
     env.AWS_LIVE_IP = awsIp
 
