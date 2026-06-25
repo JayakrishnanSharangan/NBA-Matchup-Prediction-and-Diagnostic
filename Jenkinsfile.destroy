@@ -18,13 +18,18 @@ pipeline {
             steps {
                 script {
                     echo "Stopping local containers..."
-                    sh 'docker compose down || true'
-                    sh 'docker compose -f docker-compose.prod.yml down || true'
+                    runCmd('docker compose down || true')
+                    runCmd('docker compose -f docker-compose.prod.yml down || true')
 
                     echo "Terminating SSH tunnels and localtunnels..."
-                    sh 'pkill -f "ssh.*nba" || true'
-                    sh 'pkill -f "localtunnel" || true'
-                    sh 'pkill -f "lt --port" || true'
+                    if (isUnix()) {
+                        sh 'pkill -f "ssh.*nba" || true'
+                        sh 'pkill -f "localtunnel" || true'
+                        sh 'pkill -f "lt --port" || true'
+                    } else {
+                        powershell "Get-Process | Where-Object { \$_.CommandLine -like '*ssh*nba*' } | Stop-Process -Force -ErrorAction SilentlyContinue || true"
+                        powershell "Get-Process | Where-Object { \$_.CommandLine -like '*localtunnel*' } | Stop-Process -Force -ErrorAction SilentlyContinue || true"
+                    }
                 }
             }
         }
@@ -33,8 +38,8 @@ pipeline {
             steps {
                 script {
                     echo "Running terraform destroy..."
-                    sh 'terraform init'
-                    sh 'terraform destroy -auto-approve'
+                    runCmd('terraform init')
+                    runCmd('terraform destroy -auto-approve')
                 }
             }
         }
@@ -61,5 +66,13 @@ Triggered by: ${env.BUILD_URL}"""
                 }
             }
         }
+    }
+}
+
+def runCmd(String cmd) {
+    if (isUnix()) {
+        sh cmd
+    } else {
+        bat cmd
     }
 }
