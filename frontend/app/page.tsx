@@ -1641,7 +1641,7 @@ export default function Home() {
               >
                 <div className="flex items-center justify-between border-b border-slate-850 pb-3 mb-4">
                   <h2 className="text-[10px] font-bold tracking-widest uppercase text-slate-300 font-mono">
-                    RECENT MATCH NIGHTS
+                    MATCH NIGHTS
                   </h2>
                   <div className="flex items-center gap-1 bg-[#05070F] p-0.5 border border-slate-850 rounded-none">
                     <button
