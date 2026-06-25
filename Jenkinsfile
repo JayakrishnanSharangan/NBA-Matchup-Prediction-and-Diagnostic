@@ -41,6 +41,7 @@ pipeline {
                     env.FRONTEND_IMAGE = props['FRONTEND_IMAGE']
                     env.AWS_USER = props['AWS_USER']
                     env.GITHUB_REPO = props['GITHUB_REPO']
+                    env.TERRAFORM_PATH = props['TERRAFORM_PATH'] ?: 'terraform'
                 }
             }
         }
@@ -160,15 +161,20 @@ def runCmd(String cmd) {
     }
 }
 
+def runTerraform(String args) {
+    def tfPath = env.TERRAFORM_PATH ?: 'terraform'
+    runCmd("\"${tfPath}\" ${args}")
+}
+
 def deployK3s() {
-    runCmd('terraform init')
-    runCmd('terraform apply -auto-approve')
+    runTerraform('init')
+    runTerraform('apply -auto-approve')
 
     def awsIp = ""
     if (isUnix()) {
         awsIp = sh(script: 'terraform output -raw instance_public_ip', returnStdout: true).trim()
     } else {
-        awsIp = powershell(script: 'terraform output -raw instance_public_ip', returnStdout: true).trim()
+        awsIp = powershell(script: "\"${env.TERRAFORM_PATH}\" output -raw instance_public_ip", returnStdout: true).trim()
     }
     env.AWS_LIVE_IP = awsIp
 
@@ -216,14 +222,14 @@ def deployK3s() {
 }
 
 def deployDockerAWS() {
-    runCmd('terraform init')
-    runCmd('terraform apply -auto-approve')
+    runTerraform('init')
+    runTerraform('apply -auto-approve')
 
     def awsIp = ""
     if (isUnix()) {
         awsIp = sh(script: 'terraform output -raw instance_public_ip', returnStdout: true).trim()
     } else {
-        awsIp = powershell(script: 'terraform output -raw instance_public_ip', returnStdout: true).trim()
+        awsIp = powershell(script: "\"${env.TERRAFORM_PATH}\" output -raw instance_public_ip", returnStdout: true).trim()
     }
     env.AWS_LIVE_IP = awsIp
 
@@ -280,7 +286,7 @@ def deployLocalTunnel() {
     if (isUnix()) {
         tunnelUrl = sh(script: 'cat localtunnel.log | grep -o "https://.*" || echo "http://localhost:30000"', returnStdout: true).trim()
     } else {
-        tunnelUrl = powershell(script: 'Get-Content localtunnel.log | Select-String "https://" | ForEach-Object { $_.Matches.Value } || echo "http://localhost:30000"', returnStdout: true).trim()
+        tunnelUrl = powershell(script: 'try { (Get-Content localtunnel.log | Select-String "https://" | ForEach-Object { $_.Matches.Value } | Out-String).Trim() } catch { "http://localhost:30000" }', returnStdout: true).trim()
     }
     env.AWS_LIVE_IP = "Local Run (Tunnel: ${tunnelUrl})"
 }
@@ -289,10 +295,10 @@ def teardownAWS() {
     if (isUnix()) {
         sh 'pkill -f "ssh.*nba" || true'
     } else {
-        powershell "Get-Process | Where-Object { \$_.CommandLine -like '*ssh*nba*' } | Stop-Process -Force -ErrorAction SilentlyContinue || true"
+        powershell "try { Get-Process | Where-Object { \$_.CommandLine -like '*ssh*nba*' } | Stop-Process -Force -ErrorAction Stop } catch {}"
     }
     runCmd('docker compose down || true')
-    runCmd('terraform destroy -auto-approve || true')
+    runTerraform('destroy -auto-approve')
 }
 
 def sendEmailReport(String strategy, String status) {
