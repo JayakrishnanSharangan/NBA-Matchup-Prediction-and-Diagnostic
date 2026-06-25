@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 interface NBAMatchupBackgroundProps {
   homeColor?: string;
   awayColor?: string;
+  theme?: "dark" | "light";
 }
 
 const DEFAULT_HOME = "#C9082A";
