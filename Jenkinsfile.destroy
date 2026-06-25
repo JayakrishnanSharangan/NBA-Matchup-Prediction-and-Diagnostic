@@ -1,0 +1,65 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
+        NOTIFICATION_EMAIL    = credentials('notification-email')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Stop Local Observability & Tunnels') {
+            steps {
+                script {
+                    echo "Stopping local containers..."
+                    sh 'docker compose down || true'
+                    sh 'docker compose -f docker-compose.prod.yml down || true'
+
+                    echo "Terminating SSH tunnels and localtunnels..."
+                    sh 'pkill -f "ssh.*nba" || true'
+                    sh 'pkill -f "localtunnel" || true'
+                    sh 'pkill -f "lt --port" || true'
+                }
+            }
+        }
+
+        stage('Destroy AWS Infrastructure') {
+            steps {
+                script {
+                    echo "Running terraform destroy..."
+                    sh 'terraform init'
+                    sh 'terraform destroy -auto-approve'
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                try {
+                    emailext (
+                        to: "${env.NOTIFICATION_EMAIL}",
+                        subject: "💀 NBA Engine Infrastructure Destroyed",
+                        body: """NBA Engine deployment stack has been completely destroyed.
+                        
+AWS EC2 instance: Terminated
+Local containers: Stopped
+Tunnels: Disconnected
+
+Build status: ${currentBuild.currentResult}
+Triggered by: ${env.BUILD_URL}"""
+                    )
+                } catch (Exception e) {
+                    echo "Destroy notification email failed: ${e.message}"
+                }
+            }
+        }
+    }
+}

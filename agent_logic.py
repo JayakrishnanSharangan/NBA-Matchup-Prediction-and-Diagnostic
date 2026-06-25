@@ -1,4 +1,5 @@
 import os
+import time
 import pickle
 import pandas as pd
 import numpy as np
@@ -8,6 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import date
 import warnings
 warnings.filterwarnings("ignore")
+
+# nba_api roster/stats imports (with graceful fallback)
+try:
+    from nba_api.stats.endpoints import commonteamroster, leaguedashplayerstats
+    NBA_API_AVAILABLE = True
+except ImportError:
+    NBA_API_AVAILABLE = False
+    print("[WARN] nba_api not available. /roster endpoint will return empty data.")
 
 # -----------------------------------------------------------------------------
 #  FastAPI Application
@@ -44,6 +53,70 @@ TEAM_NAMES = {
     'POR':'Portland Trail Blazers','SAC':'Sacramento Kings','SAS':'San Antonio Spurs',
     'TOR':'Toronto Raptors','UTA':'Utah Jazz','WAS':'Washington Wizards'
 }
+
+# NBA team numeric IDs (for CommonTeamRoster)
+TEAM_NBA_IDS = {
+    'ATL':1610612737,'BOS':1610612738,'BKN':1610612751,'CHA':1610612766,
+    'CHI':1610612741,'CLE':1610612739,'DAL':1610612742,'DEN':1610612743,
+    'DET':1610612765,'GSW':1610612744,'HOU':1610612745,'IND':1610612754,
+    'LAC':1610612746,'LAL':1610612747,'MEM':1610612763,'MIA':1610612748,
+    'MIL':1610612749,'MIN':1610612750,'NOP':1610612740,'NYK':1610612752,
+    'OKC':1610612760,'ORL':1610612753,'PHI':1610612755,'PHX':1610612756,
+    'POR':1610612757,'SAC':1610612758,'SAS':1610612759,'TOR':1610612761,
+    'UTA':1610612762,'WAS':1610612764
+}
+
+
+
+# -----------------------------------------------------------------------------
+#  Roster Cache (TTL=30 min per team, shared stats cache TTL=60 min)
+# -----------------------------------------------------------------------------
+_roster_cache: dict = {}          # team -> (data, timestamp)
+_stats_cache:  dict = {}          # season -> (df, timestamp)
+_ROSTER_TTL = 1800                # 30 minutes
+_STATS_TTL  = 3600                # 60 minutes
+
+
+def _get_season_stats(season: str = "2024-25") -> pd.DataFrame:
+    """Fetch & cache LeagueDashPlayerStats for a full season."""
+    now = time.time()
+    if season in _stats_cache:
+        df, ts = _stats_cache[season]
+        if now - ts < _STATS_TTL:
+            return df
+    if not NBA_API_AVAILABLE:
+        return pd.DataFrame()
+    try:
+        ep = leaguedashplayerstats.LeagueDashPlayerStats(
+            season=season, per_mode_detailed="PerGame", timeout=10
+        )
+        df = ep.get_data_frames()[0]
+        _stats_cache[season] = (df, now)
+        return df
+    except Exception as e:
+        print(f"[WARN] LeagueDashPlayerStats failed: {e}")
+        return pd.DataFrame()
+
+
+def _compute_player_elo(ppg, rpg, apg, spg, bpg, tov, fg_pct) -> int:
+    elo = 1000.0
+    elo += ppg  * 14
+    elo += rpg  * 9
+    elo += apg  * 11
+    elo += spg  * 20
+    elo += bpg  * 16
+    elo -= tov  * 10
+    if fg_pct and fg_pct > 0.30:
+        elo += fg_pct * 80
+    return max(600, int(round(elo)))
+
+
+def _derive_status(gp: int):
+    if gp == 0:
+        return "OUT", "0 GP this season"
+    elif gp < 15:
+        return "DAY-TO-DAY", f"{gp} GP"
+    return "ACTIVE", None
 
 # -----------------------------------------------------------------------------
 #  Load ML Artifacts at Startup
@@ -189,6 +262,119 @@ def get_recent_games(
         return {"status": "error", "message": str(e), "games": []}
 
 
+@app.get("/roster/{team}")
+def get_roster(
+    team: str,
+    season: str = Query("2025-26", description="Season for stats")
+):
+    """
+    Full squad roster with player ELO, position, coach, and injury status.
+    Cached for 30 minutes per team to avoid nba_api rate limits.
+    """
+    team = team.upper()
+    if team not in TEAM_NBA_IDS:
+        return {"error": f"Unknown team: {team}. Valid: {sorted(TEAM_NBA_IDS.keys())}"}
+
+    # Check cache
+    now = time.time()
+    cache_key = f"{team}_{season}"
+    if cache_key in _roster_cache:
+        cached, ts = _roster_cache[cache_key]
+        if now - ts < _ROSTER_TTL:
+            return cached
+
+    if not NBA_API_AVAILABLE:
+        return {"team": team, "coach": "N/A", "players": [],
+                "note": "nba_api not available"}
+
+    try:
+        # 1. Get roster (names, numbers, positions, coach)
+        import time as _t
+        roster_ep = commonteamroster.CommonTeamRoster(
+            team_id=TEAM_NBA_IDS[team], season=season, timeout=10
+        )
+        dfs = roster_ep.get_data_frames()
+        roster_df = dfs[0]   # Player list
+        coach_df  = dfs[1]   # Coaches
+
+        _t.sleep(0.6)  # Rate limit buffer
+
+        # 2. Get season stats for all players (cached)
+        stats_df = _get_season_stats(season)
+
+        # 3. Extract coach name
+        coach_name = "N/A"
+        if not coach_df.empty:
+            head = coach_df[coach_df['COACH_TYPE'] == 'Head Coach']
+            if not head.empty:
+                fn = head.iloc[0].get('FIRST_NAME', '')
+                ln = head.iloc[0].get('LAST_NAME', '')
+                coach_name = f"{fn} {ln}".strip()
+
+        # 4. Build player list
+        players = []
+        for _, row in roster_df.iterrows():
+            pid  = row.get('PLAYER_ID', 0)
+            name = row.get('PLAYER', row.get('PLAYER_NAME', 'Unknown'))
+            pos  = row.get('POSITION', 'N/A')
+            num  = str(row.get('NUM', ''))
+            age  = row.get('AGE', None)
+
+            # Find stats
+            ppg = rpg = apg = spg = bpg = tov = fg_pct = 0.0
+            gp = 0
+            if not stats_df.empty:
+                pstat = stats_df[stats_df['PLAYER_ID'] == pid]
+                if not pstat.empty:
+                    ps = pstat.iloc[0]
+                    ppg    = float(ps.get('PTS', 0) or 0)
+                    rpg    = float(ps.get('REB', 0) or 0)
+                    apg    = float(ps.get('AST', 0) or 0)
+                    spg    = float(ps.get('STL', 0) or 0)
+                    bpg    = float(ps.get('BLK', 0) or 0)
+                    tov    = float(ps.get('TOV', 0) or 0)
+                    fg_pct = float(ps.get('FG_PCT', 0) or 0)
+                    gp     = int(ps.get('GP', 0) or 0)
+
+            player_elo = _compute_player_elo(ppg, rpg, apg, spg, bpg, tov, fg_pct)
+            status, injury_note = _derive_status(gp)
+
+            players.append({
+                "player_id": int(pid),
+                "name":      name,
+                "position":  pos if pos else "N/A",
+                "number":    num,
+                "age":       int(age) if age else None,
+                "ppg":       round(ppg, 1),
+                "rpg":       round(rpg, 1),
+                "apg":       round(apg, 1),
+                "spg":       round(spg, 1),
+                "bpg":       round(bpg, 1),
+                "player_elo": player_elo,
+                "gp":        gp,
+                "status":    status,
+                "injury_note": injury_note,
+            })
+
+        # Sort by player ELO descending (best players first)
+        players.sort(key=lambda p: p['player_elo'], reverse=True)
+
+        result = {
+            "team":    team,
+            "coach":   coach_name,
+            "players": players,
+            "season":  season,
+        }
+
+        # Cache it
+        _roster_cache[cache_key] = (result, now)
+        return result
+
+    except Exception as e:
+        print(f"[ERROR] Roster fetch failed for {team}: {e}")
+        return {"team": team, "coach": "N/A", "players": [],
+                "error": str(e)}
+
 @app.get("/predict")
 def predict(
     home_team:  str = Query("LAL", description="Home team abbreviation (e.g. LAL)"),
@@ -206,7 +392,7 @@ def predict(
     if home_team not in states['elo'] or away_team not in states['elo']:
         return {"error": f"Invalid teams. Valid: {sorted(states['elo'].keys())}"}
 
-    # Base Features
+    # Base Features (raw ELO — playoff signal handled by v7 model features)
     elo_home = states['elo'][home_team]
     elo_away = states['elo'][away_team]
     elo_diff = elo_home - elo_away
@@ -267,6 +453,17 @@ def predict(
         'h2h_home_win_rate': h2h_home_win_rate,
     }
 
+    # v7: Playoff depth features (from states, 0.0 fallback for v6 compat)
+    po_depth = states.get('playoff_depth', {})
+    po_home  = po_depth.get(home_team, 0.0)
+    po_away  = po_depth.get(away_team, 0.0)
+    features_dict['playoff_depth_home']  = po_home
+    features_dict['playoff_depth_away']  = po_away
+    features_dict['playoff_depth_diff']  = po_home - po_away
+    features_dict['made_playoffs_home']  = 1 if po_home > 0 else 0
+    features_dict['made_playoffs_away']  = 1 if po_away > 0 else 0
+    features_dict['made_playoffs_diff']  = features_dict['made_playoffs_home'] - features_dict['made_playoffs_away']
+
     # EMA rolling features for each side
     build_team_features(home_team, 'home', features_dict)
     build_team_features(away_team, 'away', features_dict)
@@ -306,7 +503,7 @@ def predict(
         "accuracy":         round(TEST_ACCURACY, 2),
         "opponent":         TEAM_NAMES.get(away_team, away_team),
         "game_date":        game_date,
-        "model":            "v6-tiebreaker (Zero-API)",
+        "model":            f"{states.get('version', 'v6-tiebreaker')} (Zero-API)",
         "training_samples": len(states['elo']) * 82 * 24, # Approximate
         "features_used":    len(feature_cols),
         "algorithm_used":   "XGBoost Classifier GPU",
@@ -318,6 +515,11 @@ def predict(
             "is_confident_pick":   is_confident,
             "conf_win_rate_home":  round(conf_win_home, 3),
             "div_win_rate_home":   round(div_win_home, 3),
-            "is_division_leader":  bool(div_ldr_home)
+            "is_division_leader":  bool(div_ldr_home),
+            "playoff_depth_home":  round(po_home, 3),
+            "playoff_depth_away":  round(po_away, 3),
+            "playoff_depth_diff":  round(po_home - po_away, 3),
+            "made_playoffs_home":  bool(po_home > 0),
+            "made_playoffs_away":  bool(po_away > 0)
         }
     }

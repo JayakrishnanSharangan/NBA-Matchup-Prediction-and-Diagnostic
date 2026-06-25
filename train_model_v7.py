@@ -1,20 +1,19 @@
 """
-NBA Prediction Engine — v6 (Tiebreaker Edition)
-================================================
-Builds on the proven v3 FINAL architecture (85.82% test accuracy, 0.9402 ROC-AUC)
-and adds the four official NBA tiebreaker signals as features — all derived
-purely from historical game data, zero external API calls at inference time.
+NBA Prediction Engine - v7 (Playoff Depth Edition)
+==================================================
+Builds on v6 Tiebreaker (85%+ accuracy, 0.94 ROC-AUC) and adds:
 
-NEW in v6:
-  1.  Head-to-Head rolling win rate       (already in v3, now surfaced in states)
-  2.  Division Leader status              (season-level binary from historical records)
-  3.  Division Win Rate                   (EWM-20 over division games only)
-  4.  Conference Win Rate                 (EWM-20 over conference games only)
-  5.  Top-50 MI Feature Selection         (bumped from 40)
-  6.  All tiebreaker signals saved        (states → zero API calls in agent_logic.py)
+NEW in v7:
+  1.  Playoff Depth (normalized 0-1)      Num playoff games in PREVIOUS season
+  2.  Made Playoffs (binary)              Whether team made playoffs last season
+  3.  Playoff depth diff (home - away)    Head-to-head playoff experience gap
+  4.  Top-55 MI Feature Selection         Bumped from 50 to accommodate new feats
+  5.  Playoff states saved for inference  playoff_depth per team in states dict
 
-Everything else (ELO, EMA rolling, shock index, pace-adjusted, player strength,
-schedule density, H2H, Optuna, GPU, season weighting) is preserved from v3.
+Retained from v6:
+  - H2H rolling win rate, Division Leader, Division/Conference Win Rate
+  - ELO, EMA rolling, shock index, pace-adjusted, player strength
+  - Schedule density, H2H, Optuna, GPU, season weighting
 """
 
 import os, pickle, warnings
@@ -78,6 +77,35 @@ def derive_champions(df_all):
             champions[season] = w.iloc[0]['TEAM_ABBREVIATION']
             print(f"  [CHAMPION] {season}: {champions[season]}")
     return champions
+
+
+# ---------------------------------------------------------------------------
+#  NEW v7: Playoff Depth per team per season
+# ---------------------------------------------------------------------------
+def compute_playoff_depth(df_all):
+    """
+    Count how many playoff games each team played in each season.
+    More games = deeper run (4 = 1st round sweep loss, ~23 = Finals G7).
+    Returns a dict: {season: {team_abbr: normalized_depth (0-1)}}.
+    Max possible is ~28 games (4 rounds x 7 games), normalize by 28.
+    """
+    print("[INFO] Computing playoff depth per team per season...")
+    po = df_all[df_all['SEASON_TYPE'] == 'PO'].copy()
+    if po.empty:
+        return {}
+
+    MAX_PLAYOFF_GAMES = 28.0  # 4 rounds x 7 games max
+    depth = {}
+    for season in po['SEASON'].unique():
+        sp = po[po['SEASON'] == season]
+        counts = sp.groupby('TEAM_ABBREVIATION').size()
+        depth[season] = {
+            team: min(cnt / MAX_PLAYOFF_GAMES, 1.0)
+            for team, cnt in counts.items()
+        }
+    total_entries = sum(len(v) for v in depth.values())
+    print(f"       {total_entries} team-season playoff depth entries across {len(depth)} seasons.")
+    return depth
 
 
 # ---------------------------------------------------------------------------
@@ -254,9 +282,9 @@ def compute_conf_div_win_rates(df_team):
 # ===========================================================================
 def train():
     print("=" * 66)
-    print("  NBA PREDICTION ENGINE — v6  (Tiebreaker Edition)")
-    print("  H2H + Div Leader + Div Record + Conf Record + Top-50 MI")
-    print("  Built on v3 FINAL (85.82% proven architecture)")
+    print("  NBA PREDICTION ENGINE - v7  (Playoff Depth Edition)")
+    print("  H2H + Div Leader + Div/Conf Record + Playoff Depth + Top-55 MI")
+    print("  Built on v6 Tiebreaker (proven architecture)")
     print("=" * 66)
 
     g_path = os.path.join("data", "nba_all_seasons_games.csv")
@@ -278,6 +306,7 @@ def train():
     # -------------------------------------------------------------------
     CHAMPIONS = derive_champions(df_raw)
     div_leaders_set, latest_records = compute_division_leaders(df_raw)
+    playoff_depth = compute_playoff_depth(df_raw)
 
     # -------------------------------------------------------------------
     #  Player strength
@@ -474,24 +503,57 @@ def train():
         lambda r: 1 if CHAMPIONS.get(r['SEASON']) == r['TEAM_ABBREVIATION_away'] else 0, axis=1)
     df_m['def_champ_diff'] = df_m['is_defending_champion_home'] - df_m['is_defending_champion_away']
 
-    # NEW: Division leader flag (from historical RS records — no leakage for training)
+    # Division leader flag (from historical RS records)
     df_m['is_division_leader_home'] = df_m.apply(
         lambda r: 1 if (r['SEASON'], r['TEAM_ABBREVIATION_home']) in div_leaders_set else 0, axis=1)
     df_m['is_division_leader_away'] = df_m.apply(
         lambda r: 1 if (r['SEASON'], r['TEAM_ABBREVIATION_away']) in div_leaders_set else 0, axis=1)
     df_m['div_leader_diff'] = df_m['is_division_leader_home'] - df_m['is_division_leader_away']
 
+    # -------------------------------------------------------------------
+    #  NEW v7: Playoff depth features (from PREVIOUS season - no leakage)
+    #  Uses the team's playoff game count from last year as a signal.
+    # -------------------------------------------------------------------
+    def _prev_season(s):
+        """'2023-24' -> '2022-23'"""
+        try:
+            y1 = int(s[:4]) - 1
+            return f"{y1}-{str(y1+1)[-2:]}"
+        except:
+            return None
+
+    df_m['_prev_season'] = df_m['SEASON'].apply(_prev_season)
+
+    # Playoff depth: normalized 0-1 (0 = missed playoffs, 1 = deep Finals run)
+    df_m['playoff_depth_home'] = df_m.apply(
+        lambda r: playoff_depth.get(r['_prev_season'], {}).get(
+            r['TEAM_ABBREVIATION_home'], 0.0), axis=1)
+    df_m['playoff_depth_away'] = df_m.apply(
+        lambda r: playoff_depth.get(r['_prev_season'], {}).get(
+            r['TEAM_ABBREVIATION_away'], 0.0), axis=1)
+    df_m['playoff_depth_diff'] = df_m['playoff_depth_home'] - df_m['playoff_depth_away']
+
+    # Binary: did this team make playoffs last season?
+    df_m['made_playoffs_home'] = (df_m['playoff_depth_home'] > 0).astype(int)
+    df_m['made_playoffs_away'] = (df_m['playoff_depth_away'] > 0).astype(int)
+    df_m['made_playoffs_diff'] = df_m['made_playoffs_home'] - df_m['made_playoffs_away']
+
+    print(f"[INFO] Playoff depth: {(df_m['playoff_depth_home'] > 0).mean()*100:.1f}% of home teams made playoffs prev season.")
+
     # Diff features for all rolling cols
     for c in rolling_cols:
         df_m[f'{c}_diff'] = df_m[f'{c}_home'] - df_m[f'{c}_away']
 
     # -------------------------------------------------------------------
-    #  Feature matrix
+    #  Feature matrix (v7: +6 playoff features)
     # -------------------------------------------------------------------
     all_feature_cols = (
         ['elo_home', 'elo_away', 'elo_diff', 'hca', 'h2h_home_win_rate',
          'is_defending_champion_home', 'is_defending_champion_away', 'def_champ_diff',
-         'is_division_leader_home', 'is_division_leader_away', 'div_leader_diff']   # NEW
+         'is_division_leader_home', 'is_division_leader_away', 'div_leader_diff',
+         # v7 playoff features
+         'playoff_depth_home', 'playoff_depth_away', 'playoff_depth_diff',
+         'made_playoffs_home', 'made_playoffs_away', 'made_playoffs_diff']
         + [f'{c}_home' for c in rolling_cols]
         + [f'{c}_away' for c in rolling_cols]
         + [f'{c}_diff' for c in rolling_cols]
@@ -504,13 +566,14 @@ def train():
     # -------------------------------------------------------------------
     #  MI Feature Selection — TOP 50
     # -------------------------------------------------------------------
-    print("[INFO] MI feature selection (top 50) on 5,000 samples...")
+    print("[INFO] MI feature selection (top 55) on 5,000 samples...")
     df_sample = df_model.sample(n=min(5000, len(df_model)), random_state=42)
     mi    = mutual_info_classif(df_sample[all_feature_cols].fillna(0), df_sample['target'], random_state=42)
     mi_s  = pd.Series(mi, index=all_feature_cols).sort_values(ascending=False)
-    feature_cols = mi_s.head(50).index.tolist()
+    feature_cols = mi_s.head(55).index.tolist()
     print(f"       Top 10: {feature_cols[:10]}")
     print(f"       Tiebreaker cols selected: {[c for c in feature_cols if any(k in c for k in ['h2h','div','conf','leader'])]}")
+    print(f"       Playoff cols selected: {[c for c in feature_cols if 'playoff' in c or 'made_playoffs' in c]}")
 
     # -------------------------------------------------------------------
     #  Train / Test split
@@ -594,7 +657,7 @@ def train():
     acc    = accuracy_score(y_te, y_pred)
     auc    = roc_auc_score(y_te, y_prob)
 
-    print("\n============= FINAL EVALUATION (v6) =============")
+    print("\n============= FINAL EVALUATION (v7) =============")
     print(f"Test Accuracy : {acc * 100:.2f}%")
     print(f"Test ROC-AUC  : {auc:.4f}")
     print(classification_report(y_te, y_pred, digits=4))
@@ -652,6 +715,11 @@ def train():
         latest_games[team] = sub[keep_cols].to_dict(orient='records')
         last_dates[team]   = sub['GAME_DATE'].max()
 
+    # Compute latest playoff depth for each team (for zero-API inference)
+    latest_season_po = df_m['SEASON'].max()
+    latest_playoff_depth = playoff_depth.get(latest_season_po, {})
+    print(f"[INFO] Saving playoff depth for {len(latest_playoff_depth)} teams from {latest_season_po}")
+
     states = {
         'elo':                   elo,
         'last_game_date':        last_dates,
@@ -664,12 +732,14 @@ def train():
         'test_accuracy':         acc,
         'test_roc_auc':          auc,
         'conf_accuracy':         conf_acc,
-        # NEW tiebreaker signals for zero-API inference
+        # Tiebreaker signals for zero-API inference
         'team_conf_win_rate':    team_conf_win_rate,
         'team_div_win_rate':     team_div_win_rate,
         'team_is_div_leader':    team_is_div_leader,
         'div_leaders_set':       div_leaders_set,
-        'version':               'v6-tiebreaker',
+        # v7 playoff depth signals
+        'playoff_depth':         latest_playoff_depth,
+        'version':               'v7-playoff-depth',
     }
 
     os.makedirs("models", exist_ok=True)
@@ -682,9 +752,10 @@ def train():
     print(f"  FINAL ACCURACY  : {acc * 100:.2f}%")
     print(f"  FINAL ROC-AUC   : {auc:.4f}")
     print(f"  CONF ACCURACY   : {conf_acc * 100:.2f}% ({cm.mean()*100:.1f}% of games)")
-    print(f"  FEATURES USED   : {len(feature_cols)} (top-50 MI from {len(all_feature_cols)})")
-    print(f"  NEW TIEBREAKERS : h2h_home_win_rate, conf_win_rate_*, div_win_rate_*, div_leader_*")
-    print(f"  VERSION         : v6-tiebreaker")
+    print(f"  FEATURES USED   : {len(feature_cols)} (top-55 MI from {len(all_feature_cols)})")
+    print(f"  v6 TIEBREAKERS  : h2h_home_win_rate, conf_win_rate_*, div_win_rate_*, div_leader_*")
+    print(f"  v7 PLAYOFF      : playoff_depth_*, made_playoffs_*")
+    print(f"  VERSION         : v7-playoff-depth")
     print("=" * 66)
 
 

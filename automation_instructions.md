@@ -1,14 +1,14 @@
-# NBA GitOps Automation & Observability Instructions
+# NBA GitOps Automation, Observability & Failover Instructions
 
-This document provides the necessary terminal commands to spin up the local Jenkins automation runner and apply the required observability metrics patch to the remote AWS node.
+This document provides a comprehensive guide to setting up and running the local Jenkins runner, configuring secrets, and using the smart auto-failover pipeline.
 
 ---
 
-## 1. Local Jenkins Automation Pipeline Runner
+## 1. Local Jenkins Pipeline Setup
 
-To execute the updated `Jenkinsfile` locally, use the official Jenkins Docker image. This command maps the local Windows Docker daemon socket to the container, granting Jenkins the authority to execute the `docker build` and `docker run` commands defined in your pipeline stages.
+To run the Jenkins automation pipeline on your local Windows developer machine, map the local Docker daemon socket so Jenkins can execute Docker builds.
 
-Run this exactly in your PowerShell or Command Prompt terminal from the project root:
+Run the following command from the project root:
 
 ```bash
 docker run -d -p 8080:8080 -p 50000:50000 \
@@ -18,42 +18,75 @@ docker run -d -p 8080:8080 -p 50000:50000 \
   jenkins/jenkins:lts
 ```
 
-> **Note:** Once Jenkins starts, you will need the initial admin password to unlock it. You can retrieve it by running:
+> **Retrieving Jenkins Admin Password:**
 > `docker exec jenkins-local cat /var/jenkins_home/secrets/initialAdminPassword`
 
 ---
 
-## 2. Remote AWS Metrics Patch (Kubelet Exposure)
+## 2. Configuring Jenkins Credentials (One-time Setup)
 
-To allow the local Prometheus container to scrape the remote K3s Kubelet metrics endpoint, you must bind the Kubelet address to `0.0.0.0`.
+Before running the deploy pipeline, you must define the following credentials in the Jenkins UI under **Dashboard > Manage Jenkins > Credentials > System > Global credentials**:
 
-Connect to your AWS instance via SSH (`ssh -i <YOUR_KEY> ubuntu@18.214.100.93`), then run the following sequence:
+1. **aws-access-key-id**
+   - **Type:** Secret text
+   - **Secret:** *Your AWS Access Key ID* (found in line 1 of `NBASECRETS.txt`)
+   - **ID:** `aws-access-key-id`
+2. **aws-secret-access-key**
+   - **Type:** Secret text
+   - **Secret:** *Your AWS Secret Access Key* (found in line 2 of `NBASECRETS.txt`)
+   - **ID:** `aws-secret-access-key`
+3. **aws-ssh-key**
+   - **Type:** SSH Username with private key
+   - **Username:** `ubuntu`
+   - **Private Key:** Click "Enter directly" and paste the contents of `nba-automation-key.pem`
+   - **ID:** `aws-ssh-key`
+4. **dockerhub-credentials**
+   - **Type:** Username with password
+   - **Username:** `jayakrishnansharangan`
+   - **Password:** *Your Docker Hub password or Personal Access Token*
+   - **ID:** `dockerhub-credentials`
+5. **notification-email**
+   - **Type:** Secret text
+   - **Secret:** `jayakrishnan.sharangan@gmail.com`
+   - **ID:** `notification-email`
 
-### Step 2.1: Edit the K3s Service File
-Append the `--kubelet-arg=address=0.0.0.0` flag to the `k3s.service` execution command.
+---
 
+## 3. GitHub Push Trigger Webhook
+
+To make Jenkins build automatically whenever you run a `git push` to your repository:
+1. Go to your GitHub repository settings: `https://github.com/JayakrishnanSharangan/NBA-Matchup-Prediction-and-Diagnostic/settings/hooks`
+2. Click **Add webhook**.
+3. **Payload URL:** `http://<YOUR_ROUTER_IP_OR_NGROK_URL>/github-webhook/`
+4. **Content type:** `application/json`
+5. **Events:** Select "Just the push event".
+6. Save the webhook.
+
+*Note: If you do not expose your local Jenkins port to the public internet, Jenkins will fall back to polling GitHub every 5 minutes to detect changes automatically.*
+
+---
+
+## 4. Smart Auto-Failover Orchestration
+
+The pipeline is programmed with a failover hierarchy to ensure your professor receives a working public link even if AWS hits limits:
+
+1. **Primary (`aws-k3s`):** Provisions an EC2 node and deploys the stack on lightweight Kubernetes (K3s). If this stage fails, Jenkins runs `terraform destroy` automatically and transitions to Strategy 2.
+2. **Alternative (`aws-docker`):** Deploys the stack using Docker Compose directly on the EC2 instance, saving **~400MB of RAM**. If this stage fails, Jenkins runs `terraform destroy` automatically and transitions to Strategy 3.
+3. **Fallback (`local-tunnel`):** Spins up the stack on your local developer machine and generates a public HTTPS URL using `localtunnel`.
+
+---
+
+## 5. Nuclear Teardown Operations
+
+When you want to stop all activities, shut down the EC2 instances, delete local containers, and close tunnels, use the nuclear destroy tools.
+
+### Option A: Manual Terminal Script
+From your local workspace, run:
 ```bash
-# Open the k3s systemd service file in nano
-sudo nano /etc/systemd/system/k3s.service
+./destroy.sh
 ```
 
-Locate the line starting with `ExecStart=` and append the argument so it looks like this:
-`ExecStart=/usr/local/bin/k3s server --kubelet-arg=address=0.0.0.0`
-
-Save and exit (`Ctrl+O`, `Enter`, `Ctrl+X`).
-
-### Step 2.2: Reload Systemd & Restart K3s
-Apply the configuration changes by restarting the services:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart k3s
-```
-
-### Step 2.3: Verify Endpoint Accessibility
-Verify the metrics are exposed locally on the node:
-```bash
-curl -k https://localhost:10250/metrics
-```
-
-Your local Prometheus container (configured in `docker-compose.yml` to scrape `18.214.100.93:10250`) will now successfully ingest these metrics.
+### Option B: Jenkins Automated Job
+1. In Jenkins, create a new pipeline job named `NBA-Engine-Destroy`.
+2. Configure it to read from the Git repository, using script path `Jenkinsfile.destroy`.
+3. Click **Build Now** to execute the teardown and receive an email confirmation.

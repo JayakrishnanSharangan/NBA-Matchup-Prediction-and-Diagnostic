@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #07070a;
+  --background: #05070F;
   --foreground: #f4f4f5;
 }
 
@@ -12,8 +12,105 @@
   --font-mono: ui-mono, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
+/* ── Global smooth scroll behavior ── */
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* ── Hide ALL scrollbars everywhere (Chrome, Safari, Opera, Edge, IE, Firefox) ── */
+*,
+*::before,
+*::after {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* ══════════════════════════════════════════════════
+   HERO ENTRANCE ANIMATIONS
+   Using @layer to override Tailwind resets properly
+   ══════════════════════════════════════════════════ */
+
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0px) scale(1);
+  }
+}
+
+@keyframes hero-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Base hidden state — set BEFORE animation plays */
+.hero-badge,
+.hero-title,
+.hero-sub,
+.hero-status {
+  opacity: 0;
+  will-change: opacity, transform;
+}
+
+/* Staggered reveals */
+.hero-badge {
+  animation: hero-drop 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+
+.hero-title {
+  animation: hero-rise 1.0s cubic-bezier(0.16, 1, 0.3, 1) 0.35s both;
+}
+
+.hero-sub {
+  animation: hero-drop 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.75s both;
+}
+
+.hero-status {
+  animation: hero-drop 0.7s cubic-bezier(0.16, 1, 0.3, 1) 1.0s both;
+}
+
+/* ══════════════════════════════════════════════════
+   LOADING SCREEN ANIMATIONS
+   ══════════════════════════════════════════════════ */
+
+/* Gentle up/down float for scattered logos */
+@keyframes logo-float {
+  from {
+    transform: translateY(0px) rotate(var(--rot, 0deg));
+  }
+  to {
+    transform: translateY(-18px) rotate(var(--rot, 0deg));
+  }
+}
+
+/* Spinning conic gradient ring */
+@keyframes spin-ring {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Message text fade-in on change */
+@keyframes msg-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }

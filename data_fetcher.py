@@ -47,64 +47,10 @@ def fetch_upcoming_games(season="2025-26", test_mode_season="2024-25", num_games
         print(f"[WARN] ScoreboardV3 failed: {e}")
         
     # ---------------------------------------------------------
-    # Tier 2: Try ScheduleLeagueV2 for current season
+    # Tier 2: Return empty schedule during off-season
     # ---------------------------------------------------------
-    try:
-        sched = scheduleleaguev2.ScheduleLeagueV2(season=season, league_id='00', timeout=5)
-        df = sched.get_data_frames()[0]
-        if not df.empty:
-            df['GAME_DATE'] = pd.to_datetime(df['gameDateEst']).dt.date
-            future_games = df[df['GAME_DATE'] >= date.today()].sort_values('GAME_DATE')
-            
-            if not future_games.empty:
-                results = []
-                for _, row in future_games.head(num_games).iterrows():
-                    results.append({
-                        "game_id": row["gameId"],
-                        "home_team": row["homeTeam_teamTricode"],
-                        "away_team": row["awayTeam_teamTricode"],
-                        "game_date": row["GAME_DATE"].isoformat(),
-                        "status": "UPCOMING"
-                    })
-                return results
-    except Exception as e:
-        print(f"[WARN] ScheduleLeagueV2 (current season) failed: {e}")
-
-    # ---------------------------------------------------------
-    # Tier 3: Off-season fallback (use past season)
-    # ---------------------------------------------------------
-    print(f"[INFO] No upcoming games found. Falling back to test season: {test_mode_season}")
-    try:
-        sched = scheduleleaguev2.ScheduleLeagueV2(season=test_mode_season, league_id='00', timeout=5)
-        df = sched.get_data_frames()[0]
-        if not df.empty:
-            # Grab a random block of games from the middle of the season for variety
-            # Let's say, 400 games into the season
-            start_idx = min(400, len(df) - num_games)
-            start_idx = max(0, start_idx)
-            
-            subset = df.iloc[start_idx : start_idx + num_games]
-            results = []
-            for _, row in subset.iterrows():
-                # Format date string safely
-                g_date = str(row["gameDateEst"]).split()[0] if pd.notnull(row["gameDateEst"]) else "Unknown"
-                results.append({
-                    "game_id": row["gameId"],
-                    "home_team": row["homeTeam_teamTricode"],
-                    "away_team": row["awayTeam_teamTricode"],
-                    "game_date": g_date,
-                    "status": "OFF-SEASON DEMO"
-                })
-            return results
-    except Exception as e:
-        print(f"[ERROR] Off-season fallback also failed: {e}")
-        
-    # Absolute fallback if API is completely unreachable
-    return [
-        {"game_id": "001", "home_team": "LAL", "away_team": "BOS", "game_date": today, "status": "MOCK"},
-        {"game_id": "002", "home_team": "GSW", "away_team": "PHX", "game_date": today, "status": "MOCK"},
-        {"game_id": "003", "home_team": "DEN", "away_team": "MIN", "game_date": today, "status": "MOCK"}
-    ]
+    print("[INFO] No active games found. Returning empty schedule for off-season.")
+    return []
 
 def fetch_standings(season="2024-25"):
     try:

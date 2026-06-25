@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "NBA: Prediction and Analysis",
+  title: "NBA Matchup Prediction and Diagnostic",
   description: "Advanced NBA game prediction models, real-time standings, and game history analysis.",
 };
 
