@@ -48,13 +48,19 @@ function drawHexagon(
 export default function NBAMatchupBackground({
   homeColor = DEFAULT_HOME,
   awayColor = DEFAULT_AWAY,
+  theme = "dark",
 }: NBAMatchupBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const colorsRef = useRef({ home: homeColor, away: awayColor });
+  const themeRef = useRef(theme);
 
   useEffect(() => {
     colorsRef.current = { home: homeColor, away: awayColor };
   }, [homeColor, awayColor]);
+
+  useEffect(() => {
+    themeRef.current = theme;
+  }, [theme]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -99,9 +105,21 @@ export default function NBAMatchupBackground({
       t += 0.007;
       const W = canvas.width;
       const H = canvas.height;
+      const currentTheme = themeRef.current;
 
-      // Solid dark base
-      ctx.fillStyle = "#05070F";
+      // Base background gradient/solid color based on theme
+      if (currentTheme === "light") {
+        const bgGrad = ctx.createRadialGradient(
+          W / 2, H / 2, 0,
+          W / 2, H / 2, Math.max(W, H)
+        );
+        bgGrad.addColorStop(0, "#FFFFFF");
+        bgGrad.addColorStop(0.5, "#FFF9F4");
+        bgGrad.addColorStop(1, "#FFEADB");
+        ctx.fillStyle = bgGrad;
+      } else {
+        ctx.fillStyle = "#05070F";
+      }
       ctx.fillRect(0, 0, W, H);
 
       // ── Update positions ──
@@ -146,7 +164,11 @@ export default function NBAMatchupBackground({
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
-            ctx.strokeStyle = `rgba(255,255,255,${opacity})`;
+            if (currentTheme === "light") {
+              ctx.strokeStyle = `rgba(234, 88, 12, ${opacity * 0.3})`;
+            } else {
+              ctx.strokeStyle = `rgba(255,255,255,${opacity})`;
+            }
             ctx.lineWidth = 0.6;
             ctx.stroke();
           }
@@ -171,7 +193,11 @@ export default function NBAMatchupBackground({
         ctx.fill();
 
         // Crisp edge stroke
-        ctx.strokeStyle = `rgba(255,255,255,${p.alpha * 0.22})`;
+        if (currentTheme === "light") {
+          ctx.strokeStyle = `rgba(234, 88, 12, ${p.alpha * 0.28})`;
+        } else {
+          ctx.strokeStyle = `rgba(255,255,255,${p.alpha * 0.22})`;
+        }
         ctx.lineWidth   = 0.5;
         ctx.stroke();
       }

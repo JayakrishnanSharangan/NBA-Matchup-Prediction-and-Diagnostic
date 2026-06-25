@@ -196,6 +196,20 @@ export default function Home() {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   const [isAppReady, setIsAppReady] = useState(false);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "light" || savedTheme === "dark") {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    localStorage.setItem("theme", nextTheme);
+  };
   const [data, setData] = useState<PredictionResult | null>(null);
   const [standings, setStandings] = useState<StandingRecord[]>([]);
   const [recentGames, setRecentGames] = useState<RecentGameRecord[]>([]);
@@ -524,7 +538,7 @@ export default function Home() {
 
       {/* MAIN APP (fades in after loading completes)  */}
       <div
-        className="relative min-h-screen bg-transparent text-slate-100 font-sans flex flex-col justify-between select-none"
+        className={`relative min-h-screen bg-transparent text-slate-100 font-sans flex flex-col justify-between select-none ${theme === "light" ? "light-mode" : ""}`}
         style={{
           zIndex: 1,
           opacity: isAppReady ? 1 : 0,
@@ -533,22 +547,47 @@ export default function Home() {
       >
 
       {/* ANIMATED CANVAS BACKGROUND  */}
-      <NBAMatchupBackground homeColor={homeColors.primary} awayColor={awayColors.primary} />
+      <NBAMatchupBackground homeColor={homeColors.primary} awayColor={awayColors.primary} theme={theme} />
 
       {/* STICKY TOP NAV BAR  */}
-      <nav className="fixed top-0 left-0 right-0 h-16 bg-[#05070F]/90 backdrop-blur-md border-b border-slate-800 flex items-center justify-center px-8 z-50 select-none">
+      <nav className="fixed top-0 left-0 right-0 h-16 bg-[#05070F]/90 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-8 z-50 select-none">
+        {/* Left Side: Brand Text */}
+        <div className="text-[10px] font-mono font-black tracking-widest text-slate-200 uppercase">
+          NBA ENGINE
+        </div>
+
+        {/* Center Section: Navigation */}
         <div className="hidden md:flex items-center gap-8 text-xs font-mono font-bold tracking-widest text-slate-400">
           <button onClick={() => smoothScrollTo('matchup')} className="hover:text-amber-500 transition-colors uppercase cursor-pointer bg-transparent border-0">1. Matchup</button>
           <button onClick={() => smoothScrollTo('forecast')} className="hover:text-amber-500 transition-colors uppercase cursor-pointer bg-transparent border-0">2. Forecast</button>
           <button onClick={() => smoothScrollTo('diagnostics')} className="hover:text-amber-500 transition-colors uppercase cursor-pointer bg-transparent border-0">3. Diagnostics</button>
           <button onClick={() => smoothScrollTo('league-diagnostics')} className="hover:text-amber-500 transition-colors uppercase cursor-pointer bg-transparent border-0">4. League Diagnostics</button>
         </div>
-        <div className="flex md:hidden items-center gap-6 text-[10px] font-mono font-bold text-slate-500">
+        <div className="flex md:hidden items-center gap-4 text-[10px] font-mono font-bold text-slate-500">
           <button onClick={() => smoothScrollTo('matchup')} className="hover:text-amber-500 bg-transparent border-0 cursor-pointer">MATCHUP</button>
           <button onClick={() => smoothScrollTo('forecast')} className="hover:text-amber-500 bg-transparent border-0 cursor-pointer">FCST</button>
           <button onClick={() => smoothScrollTo('diagnostics')} className="hover:text-amber-500 bg-transparent border-0 cursor-pointer">DIAG</button>
           <button onClick={() => smoothScrollTo('league-diagnostics')} className="hover:text-amber-500 bg-transparent border-0 cursor-pointer">LEAGUE</button>
         </div>
+
+        {/* Right Side: Theme Switch/Toggle */}
+        <button 
+          onClick={toggleTheme}
+          className="flex items-center justify-center p-2 border border-slate-800 bg-[#0B0F19]/40 hover:bg-[#0B0F19] transition-all cursor-pointer text-slate-400 hover:text-white"
+          title="Toggle Light/Dark Mode"
+        >
+          {theme === "dark" ? (
+            /* Sun Icon (switch to light) */
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-amber-500">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m0 13.5V21M5.25 12H3m18 0h-2.25m-2.81-6.79l-1.59 1.59m-8.49 8.49l-1.59 1.59m13.62-1.59l-1.59-1.59M5.25 4.5l1.59 1.59M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          ) : (
+            /* Moon Icon (switch to dark) */
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-slate-500">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+            </svg>
+          )}
+        </button>
       </nav>
 
       {/* HEADER HERO  */}

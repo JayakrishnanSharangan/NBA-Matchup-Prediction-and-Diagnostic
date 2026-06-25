@@ -114,3 +114,166 @@ body {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ══════════════════════════════════════════════════
+   THEMING SYSTEM (Light & Dark overrides)
+   ══════════════════════════════════════════════════ */
+
+/* Light mode overrides container */
+.light-mode {
+  color: #0F172A !important;
+}
+
+/* Light mode nav bar */
+.light-mode nav {
+  background-color: rgba(255, 248, 242, 0.9) !important;
+  border-color: rgba(251, 146, 60, 0.2) !important;
+}
+.light-mode nav button {
+  color: #475569 !important;
+}
+.light-mode nav button:hover {
+  color: #ea580c !important; /* amber-600 */
+}
+.light-mode nav div {
+  color: #0F172A !important;
+}
+
+/* Hero Section */
+.light-mode header {
+  border-color: rgba(251, 146, 60, 0.15) !important;
+}
+.light-mode header h1 {
+  color: #0F172A !important;
+}
+.light-mode header .hero-badge span.tracking-widest {
+  color: #ea580c !important;
+}
+
+/* Global status badges */
+.light-mode .hero-status .flex {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(251, 146, 60, 0.25) !important;
+  color: #475569 !important;
+}
+
+/* Page sections bg & border overrides using substring attribute matching */
+.light-mode [class*="bg-[#05070F]"] {
+  background-color: rgba(255, 248, 242, 0.75) !important;
+  backdrop-filter: blur(12px);
+}
+.light-mode [class*="bg-[#0B0F19]"] {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(12px);
+  border-color: rgba(251, 146, 60, 0.22) !important;
+  box-shadow: 0 8px 30px rgba(251, 146, 60, 0.04) !important;
+}
+
+/* Global border replacements */
+.light-mode [class*="border-slate-800"],
+.light-mode [class*="border-slate-850"],
+.light-mode [class*="border-slate-900"],
+.light-mode [class*="border-slate-700"] {
+  border-color: rgba(251, 146, 60, 0.22) !important;
+}
+
+/* Dropdown list selectors & buttons */
+.light-mode select,
+.light-mode label {
+  color: #475569 !important;
+}
+
+.light-mode button.w-full {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(251, 146, 60, 0.22) !important;
+  color: #0F172A !important;
+}
+.light-mode button.w-full:hover {
+  background-color: rgba(255, 248, 242, 0.95) !important;
+}
+.light-mode button.w-full span {
+  color: #0F172A !important;
+}
+
+/* Dropdown overlay menu items */
+.light-mode .shadow-2xl {
+  background-color: #FFFFFF !important;
+  border-color: rgba(251, 146, 60, 0.25) !important;
+}
+.light-mode .shadow-2xl button {
+  color: #475569 !important;
+}
+.light-mode .shadow-2xl button:hover {
+  background-color: rgba(255, 248, 242, 0.95) !important;
+  color: #ea580c !important;
+}
+.light-mode .shadow-2xl button[class*="bg-slate-800"] {
+  background-color: rgba(255, 237, 213, 0.8) !important; /* orange-100 */
+  color: #ea580c !important;
+}
+
+/* SWAP & other buttons */
+.light-mode button[class*="border-slate-700"] {
+  border-color: rgba(251, 146, 60, 0.3) !important;
+  color: #ea580c !important;
+}
+.light-mode button[class*="border-slate-700"]:hover {
+  background-color: rgba(255, 237, 213, 0.4) !important;
+}
+
+/* Text and Titles overrides via substring attribute selectors */
+.light-mode [class*="text-slate-100"],
+.light-mode [class*="text-slate-200"],
+.light-mode [class*="text-slate-300"],
+.light-mode [class*="text-white"],
+.light-mode h1,
+.light-mode h2,
+.light-mode h3,
+.light-mode h4,
+.light-mode .hero-title,
+.light-mode button.w-full span {
+  color: #0F172A !important;
+}
+
+.light-mode [class*="text-slate-400"],
+.light-mode [class*="text-slate-500"] {
+  color: #475569 !important;
+}
+
+/* Progress bar track */
+.light-mode [class*="bg-slate-850"] {
+  background-color: rgba(251, 146, 60, 0.1) !important;
+}
+
+/* ELO graphs / elements */
+.light-mode svg text {
+  fill: #475569 !important;
+}
+.light-mode svg line {
+  stroke: rgba(251, 146, 60, 0.2) !important;
+}
+
+/* Standings table headers & rows */
+.light-mode th {
+  color: #475569 !important;
+  border-color: rgba(251, 146, 60, 0.2) !important;
+}
+.light-mode tr {
+  border-color: rgba(251, 146, 60, 0.12) !important;
+}
+.light-mode tr:hover {
+  background-color: rgba(255, 248, 242, 0.8) !important;
+}
+
+/* Telemetry Footer */
+.light-mode footer {
+  background-color: rgba(255, 248, 242, 0.95) !important;
+  border-color: rgba(251, 146, 60, 0.25) !important;
+}
+.light-mode footer [class*="text-slate-200"],
+.light-mode footer [class*="text-slate-250"] {
+  color: #0F172A !important;
+}
+.light-mode footer [class*="text-slate-550"] {
+  color: #475569 !important;
+}
