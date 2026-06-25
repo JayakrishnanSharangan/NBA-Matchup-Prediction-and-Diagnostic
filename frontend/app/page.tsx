@@ -553,7 +553,7 @@ export default function Home() {
       <nav className="fixed top-0 left-0 right-0 h-16 bg-[#05070F]/90 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-8 z-50 select-none">
         {/* Left Side: Brand Text */}
         <div className="text-[10px] font-mono font-black tracking-widest text-slate-200 uppercase">
-          NBA ENGINE
+          Prognosis Engine V7
         </div>
 
         {/* Center Section: Navigation */}
