@@ -193,6 +193,8 @@ const slowHoverTransition = {
 };
 
 export default function Home() {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
   const [isAppReady, setIsAppReady] = useState(false);
   const [data, setData] = useState<PredictionResult | null>(null);
   const [standings, setStandings] = useState<StandingRecord[]>([]);
@@ -224,8 +226,8 @@ export default function Home() {
   const fetchRosters = useCallback(async (hTeam: string, aTeam: string) => {
     setRostersLoading(true);
     try {
-      const hRes = await fetch(`http://127.0.0.1:8000/roster/${hTeam}?season=2025-26`);
-      const aRes = await fetch(`http://127.0.0.1:8000/roster/${aTeam}?season=2025-26`);
+      const hRes = await fetch(`${API_BASE_URL}/roster/${hTeam}?season=2025-26`);
+      const aRes = await fetch(`${API_BASE_URL}/roster/${aTeam}?season=2025-26`);
       if (hRes.ok && aRes.ok) {
         const hJson = await hRes.json();
         const aJson = await aRes.json();
@@ -242,7 +244,7 @@ export default function Home() {
     } finally {
       setRostersLoading(false);
     }
-  }, []);
+  }, [API_BASE_URL]);
 
   // Fetch prediction and other details
   const fetchData = useCallback(async (overrideHome?: string, overrideAway?: string) => {
@@ -250,7 +252,7 @@ export default function Home() {
     const finalHome = overrideHome || homeTeam;
     const finalAway = overrideAway || awayTeam;
     try {
-      const url = `http://127.0.0.1:8000/predict?home_team=${finalHome}&away_team=${finalAway}`;
+      const url = `${API_BASE_URL}/predict?home_team=${finalHome}&away_team=${finalAway}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -270,12 +272,12 @@ export default function Home() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [homeTeam, awayTeam]);
+  }, [homeTeam, awayTeam, API_BASE_URL]);
 
   // Fetch schedule
   const fetchScheduleData = useCallback(async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/schedule?season=2025-26&test_season=2024-25");
+      const response = await fetch(`${API_BASE_URL}/schedule?season=2025-26&test_season=2024-25`);
       if (response.ok) {
         const json = await response.json();
         if (json.status === "success" && json.games) {
@@ -287,7 +289,7 @@ export default function Home() {
     } catch (err) {
       console.error("Failed to fetch schedule:", err);
     }
-  }, []);
+  }, [API_BASE_URL]);
 
   const smoothScrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -311,7 +313,7 @@ export default function Home() {
   // Fetch standings
   const fetchStandingsData = useCallback(async (season: string) => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/standings?season=${season}`);
+      const response = await fetch(`${API_BASE_URL}/standings?season=${season}`);
       if (response.ok) {
         const json = await response.json();
         if (json.status === "success" && json.standings) {
@@ -321,12 +323,12 @@ export default function Home() {
     } catch (err) {
       console.error("Failed to fetch standings:", err);
     }
-  }, []);
+  }, [API_BASE_URL]);
 
   // Fetch recent games
   const fetchRecentGamesData = useCallback(async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/recent_games?num_games=80&season=2025-26");
+      const response = await fetch(`${API_BASE_URL}/recent_games?num_games=80&season=2025-26`);
       if (response.ok) {
         const json = await response.json();
         if (json.status === "success" && json.games) {
@@ -339,7 +341,7 @@ export default function Home() {
     } catch (err) {
       console.error("Failed to fetch recent games:", err);
     }
-  }, []);
+  }, [API_BASE_URL]);
 
   const handleShowRandomGames = () => {
     const shuffled = [...rawRecentGames].sort(() => Math.random() - 0.5);
@@ -355,7 +357,7 @@ export default function Home() {
   // Check API health periodically
   const checkStatus = useCallback(async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/schedule?num_games=1");
+      const response = await fetch(`${API_BASE_URL}/schedule?num_games=1`);
       if (response.ok) {
         setServiceStatus("online");
       } else {
@@ -364,7 +366,7 @@ export default function Home() {
     } catch {
       setServiceStatus("offline");
     }
-  }, []);
+  }, [API_BASE_URL]);
 
   const handleSwapTeams = () => {
     const temp = homeTeam;
