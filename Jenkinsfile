@@ -193,6 +193,12 @@ EOF"""
     // Copy production Compose manifest and launch workload directly
     sh "scp -i ./nba-automation-key.pem -o StrictHostKeyChecking=no ./docker-compose.prod.yml ${env.AWS_USER}@${awsIp}:/home/ubuntu/docker-compose.prod.yml"
     sh """ssh -i ./nba-automation-key.pem -o StrictHostKeyChecking=no ${env.AWS_USER}@${awsIp} << 'EOF'
+        # Stop and disable K3s to reclaim ~350MB RAM for Docker containers
+        if systemctl is-active --quiet k3s 2>/dev/null; then
+            echo "Stopping K3s background service to reclaim RAM..."
+            sudo systemctl stop k3s || true
+            sudo systemctl disable k3s || true
+        fi
         sudo docker compose -f /home/ubuntu/docker-compose.prod.yml down --remove-orphans || true
         sudo docker compose -f /home/ubuntu/docker-compose.prod.yml up -d
 EOF"""
