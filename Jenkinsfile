@@ -49,6 +49,7 @@ pipeline {
             steps {
                 script {
                     echo "Building Docker Images..."
+                    runCmd('docker logout || true')
                     runCmd('docker build -t nba-backend:latest .')
                     runCmd('docker build -t nba-frontend:latest ./frontend')
 
